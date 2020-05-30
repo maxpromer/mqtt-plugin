@@ -31,15 +31,11 @@ Blockly.JavaScript['mqtt_subscribe'] = function (block) {
 };
 
 Blockly.JavaScript['mqtt_get_number'] = function (block) {
-	// TODO: Assemble JavaScript into code variable.
-	var code = '...';
-	// TODO: Change ORDER_NONE to the correct strength.
+	var code = 'DEV_IO.MQTT().getNumber()';
 	return [code, Blockly.JavaScript.ORDER_NONE];
 };
 
 Blockly.JavaScript['mqtt_get_text'] = function (block) {
-	// TODO: Assemble JavaScript into code variable.
-	var code = '...';
-	// TODO: Change ORDER_NONE to the correct strength.
+	var code = 'DEV_IO.MQTT().getText()';
 	return [code, Blockly.JavaScript.ORDER_NONE];
 };

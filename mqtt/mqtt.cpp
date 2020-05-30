@@ -5,8 +5,26 @@
 
 static const char *TAG = "MQTT";
 
+bool tcpConnected = false;
+bool mqttConnected = false;
+int *mqttSock = NULL;
+
+char *mqttTopic = NULL;
+uint8_t *mqttPayload = NULL;
+
 bool waitCONNACKFlag = false;
 bool waitPUBACKFlag = false;
+bool waitSUBACKFlag = false;
+
+struct CallbackNode {
+	char *topic;
+	SubscribeEventCallback cb;
+
+	struct CallbackNode *next;
+};
+
+CallbackNode *callbackHead = NULL;
+CallbackNode *callbackTail = NULL;
 
 void CONNACKProcess(uint8_t c) {
 	static uint8_t state = 0;
@@ -48,16 +66,15 @@ void SUBACKProcess(uint8_t c) {
 	static uint16_t PacketId = 0;
 
 	if (state == 0) {
+		PacketId = ((uint16_t)c) << 8;
 		state = 1;
 	} else if (state == 1) {
-		PacketId = ((uint16_t)c) << 8;
+		PacketId |= c;
 		state = 2;
 	} else if (state == 2) {
-		PacketId |= c;
-		state = 3;
-	} else if (state == 3) {
 		uint8_t returnCode = c;
 		ESP_LOGI(TAG, "Subscribe acknowledgement %d: %d", PacketId, returnCode);
+		if (waitSUBACKFlag) waitSUBACKFlag = false;
 		state = 0;
 	}
 }
@@ -142,6 +159,17 @@ void PUBLISHProcess(uint8_t c, uint8_t fixed_header, uint32_t data_len) {
 					tcpConnected = false;
 				}
 				ESP_LOGI(TAG, "Send PUBACK message: %d", MsgId);
+
+				mqttTopic = topic;
+				mqttPayload = payload;
+
+				CallbackNode *node = callbackHead;
+				while(node != NULL) {
+					if (strcmp(topic, node->topic) == 0) {
+						node->cb();
+					}
+					node = node->next;
+				}
 			}
 			state = 0;
 		}
@@ -382,12 +410,17 @@ void MQTT::connect(char *host, uint16_t port, char *clientId, char *username, ch
 	ESP_LOGI(TAG, "Wait MQTT Respont");
 
 	uint16_t i = 0;
-	while(waitCONNACKFlag && (i < 5000)) {
+	while(waitCONNACKFlag && (i < 5000) && tcpConnected) {
 		vTaskDelay(10 / portTICK_PERIOD_MS);
 		i += 10;
 	}
 
-	ESP_LOGI(TAG, "Exit waits");
+	if (waitCONNACKFlag) {
+		ESP_LOGE(TAG, "MQTT Connect fail.");
+	} else {
+		ESP_LOGE(TAG, "MQTT Connected.");
+	}
+	
 }
 
 bool MQTT::isConnected() {
@@ -444,7 +477,7 @@ void MQTT::publish(char *topic, char *value, uint8_t QoS) {
 		waitPUBACKFlag = true;
 
 		uint16_t i = 0;
-		while(waitPUBACKFlag && (i < 5000)) {
+		while(waitPUBACKFlag && (i < 5000) && isConnected()) {
 			vTaskDelay(10 / portTICK_PERIOD_MS);
 			i += 10;
 		}
@@ -510,8 +543,47 @@ void MQTT::subscribe(char *topic, SubscribeEventCallback cb, int maxQoS) {
 		return;
 	}
 
+	ESP_LOGI(TAG, "Wait SUBACK");
+	waitSUBACKFlag = true;
+
+	uint16_t i = 0;
+	while(waitSUBACKFlag && (i < 5000) && isConnected()) {
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+		i += 10;
+	}
+
+	if (waitSUBACKFlag) {
+		ESP_LOGE(TAG, "Subscribe Fail !");
+		return;
+	}
+
 	ESP_LOGI(TAG, "Subscribe to %s , Max QoS: %d", topic, maxQoS);
+
+	// Add Callback
+	CallbackNode *node = new CallbackNode;
+	node->topic = topic;
+	node->cb = cb;
+	node->next = NULL;
+
+	if (callbackHead == NULL && callbackTail == NULL) {
+		callbackHead = node;
+		callbackTail = node;
+	} else {
+		callbackTail->next = node;
+		callbackTail = node;
+	}
 }
 
+char* MQTT::getTopic() {
+	return mqttTopic;
+}
+
+double MQTT::getNumber() {
+	return atof((char*)mqttPayload);
+}
+
+char* MQTT::getText() {
+	return (char*)mqttPayload;
+}
 
 #endif

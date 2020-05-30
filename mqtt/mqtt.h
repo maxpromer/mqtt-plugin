@@ -18,13 +18,6 @@
 
 typedef void(*SubscribeEventCallback)();
 
-static bool tcpConnected = false;
-static bool mqttConnected = false;
-static int *mqttSock = NULL;
-
-static char *mqttTopic = NULL;
-static uint8_t *mqttPayload = NULL;
-
 class MQTT : public Device {
 	private:
 		int sock = -1;
@@ -54,7 +47,10 @@ class MQTT : public Device {
 
 		void subscribe(char *topic, SubscribeEventCallback cb, int maxQoS = 2) ;
 
-		char *getTopic()
+		char *getTopic() ;
+		
+		double getNumber() ;
+		char *getText() ;
 
 };
 
