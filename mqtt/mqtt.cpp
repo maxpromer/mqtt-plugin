@@ -881,7 +881,7 @@ void MQTT::publish(char *topic, char *value, uint8_t QoS) {
 
 void MQTT::publish(char *topic, double value, uint8_t QoS) {
 	char buff[20];
-	sprintf(buff, "%f", value);
+	sprintf(buff, "%.8g", value);
 	this->publish(topic, buff, QoS);
 }
 
